@@ -21,9 +21,10 @@ SoftwareSerial mySoftwareSerial(D1, D5); // RX, TX
 
 AsyncWebServer server(80);
 
-const char *PARAM_INPUT_1 = "input1";
-const char *PARAM_INPUT_2 = "chipId";
-const char *PARAM_INPUT_3 = "log";
+#define CHIPID "chipId"
+#define LOG "log"
+
+
 
 void readFile(String chipId)
 {
@@ -36,20 +37,14 @@ void readFile(String chipId)
   Serial.println("");
 }
 
-void helloWorld(AsyncWebServerRequest *request)
-{
-  String inputMessage = request->getParam(PARAM_INPUT_1)->value();
-  request->send(200, "text/json", "{\"name\": \"" + inputMessage + "\"}");
-}
-
 void sendLog(AsyncWebServerRequest *request)
 {
   String chipId;
   String log;
-  if (request->hasParam(PARAM_INPUT_3) & request->hasParam(PARAM_INPUT_2))
+  if (request->hasParam(LOG) & request->hasParam(CHIPID))
   {
-    chipId = request->getParam(PARAM_INPUT_2)->value();
-    log = request->getParam(PARAM_INPUT_3)->value();
+    chipId = request->getParam(CHIPID)->value();
+    log = request->getParam(LOG)->value();
     File file = LittleFS.open("/" + chipId + ".txt", "a");
     file.print(log + "\r\n");
     Serial.print("Writed: " + chipId + ".txt");
@@ -83,8 +78,6 @@ void setup()
 
   // Register multi WiFi networks
   wifiMulti.addAP("Szurdokinet", "32Elemekcsb");
-
-  server.on("/helloWorld", HTTP_GET, helloWorld);
 
   server.on("/sendLog", HTTP_GET, sendLog);
 
