@@ -84,11 +84,6 @@ void setup()
   // Register multi WiFi networks
   wifiMulti.addAP("Szurdokinet", "32Elemekcsb");
 
-  if (MDNS.begin("esp8266"))
-  {
-    Serial.println("MDNS responder started");
-  }
-
   server.on("/helloWorld", HTTP_GET, helloWorld);
 
   server.on("/sendLog", HTTP_GET, sendLog);
