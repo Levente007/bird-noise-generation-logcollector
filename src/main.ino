@@ -24,7 +24,8 @@ AsyncWebServer server(80);
 #define CHIPID "chipId"
 #define LOG "log"
 
-
+const char* ssid = "logcollector-access-point";
+const char* pass = "testpass"; //change this to an actual secure pass if testing is done
 
 void readFile(String chipId)
 {
@@ -76,11 +77,22 @@ void setup()
   // Set WiFi to station mode
   WiFi.mode(WIFI_STA);
 
+  //set access point
+  WiFi.softAP(ssid, pass);
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
+
   // Register multi WiFi networks
   wifiMulti.addAP("Szurdokinet", "32Elemekcsb");
 
+
+  
+
+  //set server what to listen to
   server.on("/sendLog", HTTP_GET, sendLog);
 
+  //start web server
   server.begin();
   Serial.println("HTTP server started");
 
