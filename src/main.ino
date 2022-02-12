@@ -66,8 +66,6 @@ void sendLog(AsyncWebServerRequest *request)
 
 void setup()
 {
-
-  mySoftwareSerial.begin(9600);
   Serial.begin(9600);
   Serial.println("\n\nStartring Device Log Collector");
 
