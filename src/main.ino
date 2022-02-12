@@ -8,6 +8,7 @@
 #include <ESPAsyncWebServer.h>
 #include "LittleFS.h"
 #include "secrets.h"
+#include "SDFS.h"
 Secrets sec;
 
 #define USE_SERIAL Serial
@@ -26,9 +27,12 @@ const char* APPASS = "testpass"; //change this to an actual secure pass if testi
 const char* SSID = sec.SSID;
 const char* PASS = sec.pass;
 
+//static fs::FS FILESYSTEM= SDFS; //if the development device doesnt have SD card, comment this out and use littleFS
+static fs::FS FILESYSTEM= LittleFS;
+
 void readFile(String chipId)
 {
-  File file = LittleFS.open("/" + chipId + ".txt", "r");
+  File file = FILESYSTEM.open("/" + chipId + ".txt", "r");
   while (file.available())
   {
     String Line = file.readString();
@@ -45,7 +49,7 @@ void sendLog(AsyncWebServerRequest *request)
   {
     chipId = request->getParam(CHIPID)->value();
     log = request->getParam(LOG)->value();
-    File file = LittleFS.open("/" + chipId + ".txt", "a");
+    File file = FILESYSTEM.open("/" + chipId + ".txt", "a");
     file.print(log + "\r\n");
     Serial.print("Writed: " + chipId + ".txt");
     Serial.print(" ");
@@ -92,7 +96,7 @@ void setup()
   server.begin();
   Serial.println("HTTP server started");
 
-  LittleFS.begin();
+  FILESYSTEM.begin();
 }
 
 void loop()
