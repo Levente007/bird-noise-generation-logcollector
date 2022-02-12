@@ -9,15 +9,9 @@
 #include "LittleFS.h"
 
 #define USE_SERIAL Serial
-#define mp3RxPin D1
-#define mp3TxPin D5
-#define i2cSDAPin D6
-#define i2cSCLPin D7
 
 ESP8266WiFiMulti wifiMulti;
 const uint32_t connectTimeoutMs = 5000;
-
-SoftwareSerial mySoftwareSerial(D1, D5); // RX, TX
 
 AsyncWebServer server(80);
 
