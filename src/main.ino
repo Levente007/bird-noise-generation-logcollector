@@ -7,6 +7,8 @@
 #include <ESP8266mDNS.h>
 #include <ESPAsyncWebServer.h>
 #include "LittleFS.h"
+#include "secrets.h"
+Secrets sec;
 
 #define USE_SERIAL Serial
 #define mp3RxPin D1
@@ -24,8 +26,11 @@ AsyncWebServer server(80);
 #define CHIPID "chipId"
 #define LOG "log"
 
-const char* ssid = "logcollector-access-point";
-const char* pass = "testpass"; //change this to an actual secure pass if testing is done
+const char* APSSID = "logcollector-access-point";
+const char* APPASS = "testpass"; //change this to an actual secure pass if testing is done
+
+const char* SSID = sec.SSID;
+const char* PASS = sec.pass;
 
 void readFile(String chipId)
 {
@@ -78,16 +83,15 @@ void setup()
   WiFi.mode(WIFI_STA);
 
   //set access point
-  WiFi.softAP(ssid, pass);
+  WiFi.softAP(APSSID, APPASS);
   IPAddress IP = WiFi.softAPIP();
   Serial.print("AP IP address: ");
   Serial.println(IP);
 
   // Register multi WiFi networks
-  wifiMulti.addAP("Szurdokinet", "32Elemekcsb");
-
-
-  
+  wifiMulti.addAP(SSID, PASS);
+  wifiMulti.run(connectTimeoutMs);
+  Serial.println(WiFi.SSID());
 
   //set server what to listen to
   server.on("/sendLog", HTTP_GET, sendLog);
@@ -101,7 +105,5 @@ void setup()
 
 void loop()
 {
-  //Maintain WiFi connection
-  wifiMulti.run(connectTimeoutMs);
-  delay(1000);
+  
 }
