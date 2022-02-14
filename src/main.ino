@@ -31,8 +31,8 @@ const char *PASS = sec.pass;
 
 const String server_url = config.server_url;
 
-// static fs::FS FILESYSTEM= SDFS; //if the development device doesnt have SD card, comment this out and use littleFS
-static fs::FS FILESYSTEM = LittleFS;
+ static fs::FS FILESYSTEM= SDFS; //if the development device doesnt have SD card, comment this out and use littleFS
+//static fs::FS FILESYSTEM = LittleFS;
 
 int POSTTask(String url, String payload)
 {
@@ -178,7 +178,7 @@ void postLogs()
       String payload;
       payload.reserve(1000);
       while (file.available())
-      {
+      { //FIXME: I see some heavy violation of DRY here. Pls Extract the common stuff to a new function.
         // read up logline
         unsigned long timestamp = file.readStringUntil('#').toInt();
         Serial.print("timestamp: " + String(timestamp));
@@ -199,8 +199,9 @@ void postLogs()
         {
           // if send fails, append the line to unsentlogs
           Serial.println("log resend failed");
+          //FIXME: what if this also fails?
         }
-      }
+      } //FIXME: there is no delete here, if we would fail one sending, this would spam that on every iteration.
     }
   }
 }
