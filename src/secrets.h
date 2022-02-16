@@ -2,6 +2,6 @@
 
 class Secrets{
     public:
-        const char* SSID = "";
-        const char* pass = "";
+        const char* SSID = "Szurdokinet";
+        const char* pass = "32Elemekcsb";
 };

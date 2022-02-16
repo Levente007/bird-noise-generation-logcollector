@@ -31,10 +31,10 @@ const char *PASS = sec.pass;
 
 const String server_url = config.server_url;
 
- static fs::FS FILESYSTEM= SDFS; //if the development device doesnt have SD card, comment this out and use littleFS
-//static fs::FS FILESYSTEM = LittleFS;
+static fs::FS FILESYSTEM = SDFS; // if the development device doesnt have SD card, comment this out and use littleFS
+// static fs::FS FILESYSTEM = LittleFS;
 
-int POSTTask(String url, String payload)
+int POSTTask(String url, String payload) // Make a post request
 {
   WiFiClient client;
   HTTPClient http;
@@ -82,7 +82,7 @@ int POSTTask(String url, String payload)
   return 999;
 };
 
-void readFile(String chipId)
+void readFile(String chipId) // Read a chipId file every line of it not to necessary
 {
   File file = FILESYSTEM.open("/logs/" + chipId + ".txt", "r");
   while (file.available())
@@ -93,14 +93,17 @@ void readFile(String chipId)
   Serial.println("");
 }
 
-void sendLog(AsyncWebServerRequest *request)
+void sendLog(AsyncWebServerRequest *request) // Welcome a request with ChipId and a log and save it down
 {
   String chipId;
   String log;
   if (request->hasParam(LOG) & request->hasParam(CHIPID))
   {
+    //get the params
     chipId = request->getParam(CHIPID)->value();
     log = request->getParam(LOG)->value();
+
+    //save the params
     File file = FILESYSTEM.open("/logs/" + chipId + ".txt", "a");
     file.print(log + "\r\n");
     Serial.print("Writed: " + chipId + ".txt");
@@ -120,11 +123,47 @@ void sendLog(AsyncWebServerRequest *request)
   }
 }
 
-void postLogs()
+void SendLogToServer(File file, File unsentLogs, String name)// This function will actually read a file and send that to the birdNoise server
+{ 
+  while (file.available())
+  {
+    String payload;
+    payload.reserve(1000);
+
+    // read up logline
+    unsigned long timestamp = file.readStringUntil('#').toInt();
+    Serial.print("timestamp: " + String(timestamp));
+    int messageCode = file.readStringUntil('#').toInt();
+    Serial.print(", messageCode: " + String(messageCode));
+    String additional;
+    additional.reserve(30);
+    additional = file.readStringUntil('\n');
+    additional.trim();
+    Serial.println(", additional: " + additional);
+
+    // send logline to server
+
+    name.replace(".txt", "");
+    String url = server_url + "/deviceLog/save?chipId=" + name;
+    payload = "{\"timestamp\":" + String(timestamp) + ", \"messageCode\":\"" + String(messageCode) + "\", \"additional\":\"" + additional + "\"}";
+    Serial.println(payload);
+    int returned = POSTTask(url, payload);
+    if (returned > 399 || returned < 0)
+    {
+      // if send fails, append the line to unsentlogs
+      Serial.println("log send failed");
+      unsentLogs.print(timestamp + "#" + String(messageCode) + "#" + additional + "\n");
+      unsentLogs.flush();
+    }
+  }
+}
+
+void postLogs() // this function will search for sendable logs
 {
   if (WiFi.status() == WL_CONNECTED)
   {
     Dir dir = FILESYSTEM.openDir("/logs/");
+    Dir unsentLogs = FILESYSTEM.openDir("/unsentlogs/");
     while (dir.next())
     {
       Serial.println("Posting logs for: " + dir.fileName());
@@ -132,112 +171,65 @@ void postLogs()
       {
         File file = dir.openFile("r");
         File unsentlogs = FILESYSTEM.open("/unsentlogs/" + dir.fileName(), "a");
-        String payload;
-        payload.reserve(1000);
-        while (file.available())
-        {
-          // read up logline
-          unsigned long timestamp = file.readStringUntil('#').toInt();
-          Serial.print("timestamp: " + String(timestamp));
-          int messageCode = file.readStringUntil('#').toInt();
-          Serial.print(", messageCode: " + String(messageCode));
-          String additional;
-          additional.reserve(30);
-          additional = file.readStringUntil('\n');
-          additional.trim();
-          Serial.println(", additional: " + additional);
 
-          // send logline to server
-          String name = dir.fileName();
-          name.replace(".txt", "");
-          String url = server_url + "/deviceLog/save?chipId=" + name;
-          payload = "{\"timestamp\":" + String(timestamp) + ", \"messageCode\":\"" + String(messageCode) + "\", \"additional\":\"" + additional + "\"}";
-          Serial.println(payload);
-          int returned = POSTTask(url, payload);
-          if (returned > 399 || returned < 0)
-          {
-            // if send fails, append the line to unsentlogs
-            Serial.println("log send failed");
-            unsentlogs.print(timestamp + "#" + String(messageCode) + "#" + additional + "\n");
-            unsentlogs.flush();
-          }
-        }
+        String fileName = dir.fileName();
+        fileName.remove('.txt');
+        SendLogToServer(file, unsentlogs, fileName);
+
         unsentlogs.close();
         file.close();
         FILESYSTEM.remove("/logs/" + dir.fileName());
       }
     }
-  }
-  Dir unsentLogs = FILESYSTEM.openDir("/unsentlogs/");
-  while (unsentLogs.next())
-  {
-    Serial.println("Reposting logs for: " + unsentLogs.fileName());
-    if (unsentLogs.fileSize())
+    while (unsentLogs.next())
     {
-      File file = unsentLogs.openFile("r");
-      String payload;
-      payload.reserve(1000);
-      while (file.available())
-      { //FIXME: I see some heavy violation of DRY here. Pls Extract the common stuff to a new function.
-        // read up logline
-        unsigned long timestamp = file.readStringUntil('#').toInt();
-        Serial.print("timestamp: " + String(timestamp));
-        int messageCode = file.readStringUntil('#').toInt();
-        Serial.print(", messageCode: " + String(messageCode));
-        String additional;
-        additional.reserve(30);
-        additional = file.readStringUntil('\n');
-        additional.trim();
-        Serial.println(", additional: " + additional);
-
-        // send logline to server
-        String url = server_url + "/deviceLog/save?chipId=" + ESP.getChipId();
-        payload = "{\"timestamp\":" + String(timestamp) + ", \"messageCode\":\"" + String(messageCode) + "\", \"additional\":\"" + additional + "\"}";
-        Serial.println(payload);
-        int returned = POSTTask(url, payload);
-        if (returned > 399 || returned < 0)
-        {
-          // if send fails, append the line to unsentlogs
-          Serial.println("log resend failed");
-          //FIXME: what if this also fails?
-        }
-      } //FIXME: there is no delete here, if we would fail one sending, this would spam that on every iteration.
+      Serial.println("Reposting logs for: " + unsentLogs.fileName());
+      if (unsentLogs.fileSize())
+      {
+        File file = unsentLogs.openFile("r");
+        File fileToAppend = FILESYSTEM.open("/logs/" + unsentLogs.fileName(), "a");
+        String fileName = unsentLogs.fileName();
+        fileName.remove('.txt');
+        SendLogToServer(file, fileToAppend, fileName);
+      } // FIXME: there is no delete here, if we would fail one sending, this would spam that on every iteration.
+        //   Well thats the point isn't it? to never delete unsentlogs.
     }
   }
 }
-  void setup()
-  {
-    Serial.begin(9600);
-    Serial.println("\n\nStartring Device Log Collector");
 
-    Serial.println("\nESP8266 Multi WiFi example");
+void setup()
+{
+  Serial.begin(9600);
+  Serial.println("\n\nStartring Device Log Collector");
 
-    // Set WiFi to station mode
-    WiFi.mode(WIFI_STA);
+  Serial.println("\nESP8266 Multi WiFi example");
 
-    // set access point
-    WiFi.softAP(APSSID, APPASS);
-    IPAddress IP = WiFi.softAPIP();
-    Serial.print("AP IP address: ");
-    Serial.println(IP);
+  // Set WiFi to station mode
+  WiFi.mode(WIFI_STA);
 
-    // Register multi WiFi networks
-    wifiMulti.addAP(SSID, PASS);
-    wifiMulti.run(connectTimeoutMs);
-    Serial.println(WiFi.SSID());
+  // set access point
+  WiFi.softAP(APSSID, APPASS);
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
 
-    // set server what to listen to
-    server.on("/sendLog", HTTP_GET, sendLog);
+  // Register multi WiFi networks
+  wifiMulti.addAP(SSID, PASS);
+  wifiMulti.run(connectTimeoutMs);
+  Serial.println(WiFi.SSID());
 
-    // start web server
-    server.begin();
-    Serial.println("HTTP server started");
-    delay(1000);
+  // set server what to listen to
+  server.on("/sendLog", HTTP_GET, sendLog);
 
-    FILESYSTEM.begin();
-    postLogs();
-  }
+  // start web server
+  server.begin();
+  Serial.println("HTTP server started");
+  delay(1000);
 
-  void loop()
-  {
-  }
+  FILESYSTEM.begin();
+  postLogs();
+}
+
+void loop()
+{
+}
