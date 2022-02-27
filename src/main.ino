@@ -15,7 +15,7 @@ Secrets sec;
 Config config;
 
 static String name = config.name;
-static String ver = "1_0";
+static String ver = "1_1";
 
 #define USE_SERIAL Serial
   
@@ -126,7 +126,7 @@ void sendLog(AsyncWebServerRequest *request) // Welcome a request with ChipId an
 }
 
 void SendLogToServer(File file, File unsentLogs, String name)// This function will actually read a file and send that to the birdNoise server
-{ 
+{ //                                //FIXME: rename variables for clarity
   while (file.available())
   {
     String payload;
@@ -145,7 +145,7 @@ void SendLogToServer(File file, File unsentLogs, String name)// This function wi
 
     // send logline to server
 
-    name.replace(".txt", "");
+    name.replace(".txt", ""); //FIXME: Check or remove .txt, rename variable to chipId
     String url = server_url + "/deviceLog/save?chipId=" + name;
     payload = "{\"timestamp\":" + String(timestamp) + ", \"messageCode\":\"" + String(messageCode) + "\", \"additional\":\"" + additional + "\"}";
     Serial.println(payload);
@@ -191,6 +191,10 @@ void postLogs() // this function will search for sendable logs
         String fileName = unsentLogs.fileName();
         fileName.remove('.txt');
         SendLogToServer(file, fileToAppend, fileName);
+
+        file.close();
+        fileToAppend.close();
+        FILESYSTEM.remove("/unsentlogs/" + unsentLogs.fileName());
       }
     }
 }
