@@ -3,6 +3,7 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
 #include <ESP8266HTTPClient.h>
+#include <ESP8266httpUpdate.h>
 #include "SoftwareSerial.h"
 #include <ESP8266mDNS.h>
 #include <ESPAsyncWebServer.h>
@@ -13,9 +14,12 @@
 Secrets sec;
 Config config;
 
-#define USE_SERIAL Serial
+static String name = config.name;
+static String ver = "1_0";
 
-ESP8266WiFiMulti wifiMulti;
+#define USE_SERIAL Serial
+  
+ESP8266WiFiMulti WiFiMulti;
 const uint32_t connectTimeoutMs = 5000;
 
 AsyncWebServer server(80);
@@ -26,18 +30,16 @@ AsyncWebServer server(80);
 const char *APSSID = "logcollector-access-point";
 const char *APPASS = "testpass"; // change this to an actual secure pass if testing is done
 
-const char *SSID = sec.SSID;
-const char *PASS = sec.pass;
-
 const String server_url = config.server_url;
 
 static fs::FS FILESYSTEM = SDFS; // if the development device doesnt have SD card, comment this out and use littleFS
 // static fs::FS FILESYSTEM = LittleFS;
 
-int POSTTask(String url, String payload) // Make a post request
-{
   WiFiClient client;
   HTTPClient http;
+
+int POSTTask(String url, String payload) // Make a post request
+{
   if (http.begin(client, url))
   {
     Serial.print(F("[HTTPS] POST "));
@@ -160,8 +162,6 @@ void SendLogToServer(File file, File unsentLogs, String name)// This function wi
 
 void postLogs() // this function will search for sendable logs
 {
-  if (WiFi.status() == WL_CONNECTED)
-  {
     Dir dir = FILESYSTEM.openDir("/logs/");
     Dir unsentLogs = FILESYSTEM.openDir("/unsentlogs/");
     while (dir.next())
@@ -191,18 +191,128 @@ void postLogs() // this function will search for sendable logs
         String fileName = unsentLogs.fileName();
         fileName.remove('.txt');
         SendLogToServer(file, fileToAppend, fileName);
-      } // FIXME: there is no delete here, if we would fail one sending, this would spam that on every iteration.
-        //   Well thats the point isn't it? to never delete unsentlogs.
+      }
+    }
+}
+
+
+/**********************************************
+             webupdate functions - only works with WiFi
+
+***********************************************/
+void updateFunc(String Name, String Version) // TODO: documentation
+{
+  HTTPClient http;
+
+  String url = sec.update_server + "/check?" + "name=" + Name + "&ver=" + Version;
+  USE_SERIAL.print("[HTTP] check at " + url);
+  if (http.begin(client, url))
+  { // HTTP
+
+    USE_SERIAL.print("[HTTP] GET...\n");
+    // start connection and send HTTP header
+    int httpCode = http.GET();
+    delay(10000); // wait for bootup of the server
+    httpCode = http.GET();
+    // httpCode will be negative on error
+    if (httpCode > 0)
+    {
+      // HTTP header has been send and Server response header has been handled
+      USE_SERIAL.printf("[HTTP] GET... code: %d\n", httpCode);
+
+      // file found at server
+      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
+      {
+        String payload = http.getString();
+        USE_SERIAL.println(payload);
+        if (payload.indexOf("bin") > 0)
+        {
+          LittleFS.end();
+          httpUpdateFunc(sec.update_server + payload);
+        }
+      }
+    }
+    else
+    {
+      USE_SERIAL.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+    }
+
+    http.end();
+  }
+}
+
+void httpUpdateFunc(String update_url) // this is from the core example
+{
+  if ((WiFiMulti.run() == WL_CONNECTED))
+  {
+
+    // The line below is optional. It can be used to blink the LED on the board during flashing
+    // The LED will be on during download of one buffer of data from the network. The LED will
+    // be off during writing that buffer to flash
+    // On a good connection the LED should flash regularly. On a bad connection the LED will be
+    // on much longer than it will be off. Other pins than LED_BUILTIN may be used. The second
+    // value is used to put the LED on. If the LED is on with HIGH, that value should be passed
+    ESPhttpUpdate.setLedPin(LED_BUILTIN, LOW);
+
+    // Add optional callback notifiers
+    ESPhttpUpdate.onStart(update_started);
+    ESPhttpUpdate.onEnd(update_finished);
+    ESPhttpUpdate.onProgress(update_progress);
+    ESPhttpUpdate.onError(update_error);
+
+    t_httpUpdate_return ret = ESPhttpUpdate.update(client, update_url);
+    // Or:
+    // t_httpUpdate_return ret = ESPhttpUpdate.update(client, "server", 80, "file.bin");
+
+    switch (ret)
+    {
+    case HTTP_UPDATE_FAILED:
+      USE_SERIAL.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
+      break;
+
+    case HTTP_UPDATE_NO_UPDATES:
+      USE_SERIAL.println("HTTP_UPDATE_NO_UPDATES");
+      break;
+
+    case HTTP_UPDATE_OK:
+      USE_SERIAL.println("HTTP_UPDATE_OK");
+      break;
     }
   }
 }
+
+void update_started()
+{
+  USE_SERIAL.println("CALLBACK:  HTTP update process started");
+}
+
+void update_finished()
+{
+  USE_SERIAL.println("CALLBACK:  HTTP update process finished");
+}
+
+void update_progress(int cur, int total)
+{
+  USE_SERIAL.printf("CALLBACK:  HTTP update process at %d of %d bytes...\n", cur, total);
+}
+
+void update_error(int err)
+{
+  USE_SERIAL.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
+}
+/**************end of section********************/
+
 
 void setup()
 {
   Serial.begin(9600);
   Serial.println("\n\nStartring Device Log Collector");
 
-  Serial.println("\nESP8266 Multi WiFi example");
+  Serial.println();
+  Serial.print(F("name: "));
+  Serial.print(name);
+  Serial.print(F(" ver: "));
+  Serial.println(ver);
 
   // Set WiFi to station mode
   WiFi.mode(WIFI_STA);
@@ -214,8 +324,9 @@ void setup()
   Serial.println(IP);
 
   // Register multi WiFi networks
-  wifiMulti.addAP(SSID, PASS);
-  wifiMulti.run(connectTimeoutMs);
+  WiFiMulti.addAP(sec.SSID_1,sec.pass_1);
+  WiFiMulti.addAP(sec.SSID_2,sec.pass_2);
+  WiFiMulti.run(connectTimeoutMs);
   Serial.println(WiFi.SSID());
 
   // set server what to listen to
@@ -227,9 +338,29 @@ void setup()
   delay(1000);
 
   FILESYSTEM.begin();
-  postLogs();
+
+
 }
 
 void loop()
 {
+  delay(3000);
+
+  int numberOfNetworks = WiFi.scanNetworks();
+  delay(100);
+  if (numberOfNetworks > 0)
+  {
+    for (int i = 0; i < numberOfNetworks; i++)
+    {
+      Serial.println(WiFi.SSID(i));
+    }
+  }
+  if (WiFiMulti.run() == WL_CONNECTED)
+  {
+  updateFunc(name,ver);
+  postLogs();
+  }
+  else{
+    Serial.println("WiFi not connected");
+  }
 }
