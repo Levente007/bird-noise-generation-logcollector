@@ -129,6 +129,7 @@ void sendLog(AsyncWebServerRequest *request) // Welcome a request with ChipId an
 
 void SendLogToServer(File file, File unsentLogs, String name)// This function will actually read a file and send that to the birdNoise server
 { //                                //FIXME: rename variables for clarity
+  File sentLogs = FILESYSTEM.open("/sentLogs/" + name + ".txt", "a");
   while (file.available())
   {
     String payload;
@@ -158,8 +159,13 @@ void SendLogToServer(File file, File unsentLogs, String name)// This function wi
       Serial.println("log send failed");
       unsentLogs.print(timestamp + "#" + String(messageCode) + "#" + additional + "\n");
       unsentLogs.flush();
+    } else {
+      sentLogs.print(timestamp + "#" + String(messageCode) + "#" + additional + "\n");
+      sentLogs.flush();
     }
   }
+  sentLogs.flush();
+  sentLogs.close();
 }
 
 void postLogs() // this function will search for sendable logs
