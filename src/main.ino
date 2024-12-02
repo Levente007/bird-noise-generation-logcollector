@@ -110,7 +110,7 @@ void readFile(String chipId) // Read a chipId file every line of it not to neces
 
 void sendLog(AsyncWebServerRequest *request) // Welcome a request with ChipId and a log and save it to SD card
 {
-  digitalWrite(LED_BUILTIN,HIGH); //flash the led when we receiveing stuff
+  digitalWrite(LED_BUILTIN,HIGH); //flash the led when we are receiveing data
   String chipId;
   String log;
   if (request->hasParam(LOG) & request->hasParam(CHIPID))
