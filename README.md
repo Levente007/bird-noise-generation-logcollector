@@ -2,7 +2,7 @@
 This repository is part of the birdnoise project, in which ornithologists play sounds to birds in forests to make science.
 The sounds are played on an esp8266 based device, more info: https://github.com/klucsik/noise-generator-for-bird-research
 
-This is the code for the device the collects the logs from these devices.
+This is the code for the "logCollectorDevice" that collects the logs from these devices.
 
 ## The Device:
 The device is an ESP8266 with an SD card module attached to it (the device can be configure to use LittleFS instead).
