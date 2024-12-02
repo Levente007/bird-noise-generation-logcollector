@@ -1,3 +1,16 @@
+/*
+  Main file of the device log collector.
+    Code written by: 
+        Ódor Levente:
+              email: levente.odor007@gmail.com
+              github: Levente007
+              discord: thecringeone
+        Klucsik Krisztán Pál:
+              email: klucsik.krisztian@gmail.com
+              github: klucsik
+              discord: klucsik
+*/
+
 #include <Arduino.h>
 
 #include <ESP8266WiFi.h>
@@ -350,8 +363,6 @@ void setup()
   delay(1000);
 
   FILESYSTEM.begin();
-
-
 }
 
 void loop()
